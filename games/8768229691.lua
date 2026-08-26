@@ -22,7 +22,6 @@ local runService = cloneref(game:GetService('RunService'))
 
 local gameCamera = workspace.CurrentCamera
 local lplr = playersService.LocalPlayer
-local assetfunction = getcustomasset
 
 local vape = shared.vape
 local entitylib = vape.Libraries.entity
@@ -33,7 +32,7 @@ local tween = vape.Libraries.tween
 local color = vape.Libraries.color
 local whitelist = vape.Libraries.whitelist
 local prediction = vape.Libraries.prediction
-local getcustomasset = vape.Libraries.getcustomasset
+local getvapeasset = vape.Libraries.getvapeasset
 
 local skywars, remotes = {}, {}
 local store = {
@@ -1446,7 +1445,7 @@ run(function()
 						Size = UDim2.new(1, 89, 1, 52),
 						Position = UDim2.fromOffset(-48, -31),
 						BackgroundTransparency = 1,
-						Image = getcustomasset('newvape/assets/new/blur.png'),
+						Image = getvapeasset('newvape/assets/new/blur.png'),
 						ScaleType = Enum.ScaleType.Slice,
 						SliceCenter = Rect.new(52, 31, 261, 502)
 					}),

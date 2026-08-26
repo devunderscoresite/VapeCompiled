@@ -29,7 +29,6 @@ local isnetworkowner = identifyexecutor and table.find({'AWP', 'Nihon'}, ({ident
 end
 local gameCamera = workspace.CurrentCamera
 local lplr = playersService.LocalPlayer
-local assetfunction = getcustomasset
 
 local kickThread = task.spawn(lplr.Kick, lplr, 'Bedwars is no longer supported by Vape V4, thank you for 5 years of support ❤️')
 if coroutine.status(kickThread) ~= 'dead' then
@@ -46,7 +45,7 @@ local color = vape.Libraries.color
 local whitelist = vape.Libraries.whitelist
 local prediction = vape.Libraries.prediction
 local getfontbounds = vape.Libraries.getfontbounds
-local getcustomasset = vape.Libraries.getcustomasset
+local getvapeasset = vape.Libraries.getvapeasset
 
 local store = {
 	attackReach = 0,
@@ -78,7 +77,7 @@ local function addBlur(parent)
 	blur.Size = UDim2.new(1, 89, 1, 52)
 	blur.Position = UDim2.fromOffset(-48, -31)
 	blur.BackgroundTransparency = 1
-	blur.Image = getcustomasset('newvape/assets/new/blur.png')
+	blur.Image = getvapeasset('newvape/assets/new/blur.png')
 	blur.ScaleType = Enum.ScaleType.Slice
 	blur.SliceCenter = Rect.new(52, 31, 261, 502)
 	blur.Parent = parent
@@ -5517,7 +5516,7 @@ run(function()
 						Size = UDim2.new(1, 89, 1, 52),
 						Position = UDim2.fromOffset(-48, -31),
 						BackgroundTransparency = 1,
-						Image = getcustomasset('newvape/assets/new/blur.png'),
+						Image = getvapeasset('newvape/assets/new/blur.png'),
 						ScaleType = Enum.ScaleType.Slice,
 						SliceCenter = Rect.new(52, 31, 261, 502)
 					}),
@@ -6704,7 +6703,7 @@ run(function()
 		close.Position = UDim2.new(1, -35, 0, 9)
 		close.BackgroundColor3 = Color3.new(1, 1, 1)
 		close.BackgroundTransparency = 1
-		close.Image = getcustomasset('newvape/assets/new/close.png')
+		close.Image = getvapeasset('newvape/assets/new/close.png')
 		close.ImageColor3 = color.Light(uipallet.Text, 0.2)
 		close.ImageTransparency = 0.5
 		close.AutoButtonColor = false
@@ -6818,7 +6817,7 @@ run(function()
 		searchicon.Size = UDim2.fromOffset(14, 14)
 		searchicon.Position = UDim2.new(1, -26, 0, 8)
 		searchicon.BackgroundTransparency = 1
-		searchicon.Image = getcustomasset('newvape/assets/new/search.png')
+		searchicon.Image = getvapeasset('newvape/assets/new/search.png')
 		searchicon.ImageColor3 = color.Light(uipallet.Main, 0.37)
 		searchicon.Parent = searchbkg
 		local children = Instance.new('ScrollingFrame')
@@ -6959,7 +6958,7 @@ run(function()
 		textbuttonicon.Position = UDim2.fromScale(0.5, 0.5)
 		textbuttonicon.AnchorPoint = Vector2.new(0.5, 0.5)
 		textbuttonicon.BackgroundTransparency = 1
-		textbuttonicon.Image = getcustomasset('newvape/assets/new/add.png')
+		textbuttonicon.Image = getvapeasset('newvape/assets/new/add.png')
 		textbuttonicon.ImageColor3 = Color3.fromHSV(0.46, 0.96, 0.52)
 		textbuttonicon.Parent = textbutton
 		local childrenlist = Instance.new('Frame')
@@ -7052,7 +7051,7 @@ run(function()
 			close.Position = UDim2.new(1, -23, 0, 6)
 			close.BackgroundColor3 = Color3.new(1, 1, 1)
 			close.BackgroundTransparency = 1
-			close.Image = getcustomasset('newvape/assets/new/closemini.png')
+			close.Image = getvapeasset('newvape/assets/new/closemini.png')
 			close.ImageColor3 = color.Light(uipallet.Text, 0.2)
 			close.ImageTransparency = 0.5
 			close.AutoButtonColor = false
@@ -7986,8 +7985,8 @@ run(function()
 	
 	local function choosesong()
 		local list = List.ListEnabled
-		if #alreadypicked >= #list then 
-			table.clear(alreadypicked) 
+		if #alreadypicked >= #list then
+			table.clear(alreadypicked)
 		end
 	
 		if #list <= 0 then
@@ -7998,9 +7997,9 @@ run(function()
 	
 		local chosensong = list[math.random(1, #list)]
 		if #list > 1 and table.find(alreadypicked, chosensong) then
-			repeat 
-				task.wait() 
-				chosensong = list[math.random(1, #list)] 
+			repeat
+				task.wait()
+				chosensong = list[math.random(1, #list)]
 			until not table.find(alreadypicked, chosensong) or not SongBeats.Enabled
 		end
 		if not SongBeats.Enabled then return end
@@ -8012,7 +8011,7 @@ run(function()
 			return
 		end
 	
-		songobj.SoundId = assetfunction(split[1])
+		songobj.SoundId = getcustomasset(split[1])
 		repeat task.wait() until songobj.IsLoaded or not SongBeats.Enabled
 		if SongBeats.Enabled then
 			beattick = tick() + (tonumber(split[3]) or 0)
@@ -8081,8 +8080,8 @@ run(function()
 	Volume = SongBeats:CreateSlider({
 		Name = 'Volume',
 		Function = function(val)
-			if songobj then 
-				songobj.Volume = val / 100 
+			if songobj then
+				songobj.Volume = val / 100
 			end
 		end,
 		Min = 1,
@@ -8126,7 +8125,7 @@ run(function()
 				local split = entry:split('/')
 				local id = bedwars.SoundList[split[1]]
 				if id and #split > 1 then
-					soundlist[id] = split[2]:find('rbxasset') and split[2] or isfile(split[2]) and assetfunction(split[2]) or ''
+					soundlist[id] = split[2]:find('rbxasset') and split[2] or isfile(split[2]) and getcustomasset(split[2]) or ''
 				end
 			end
 		end
