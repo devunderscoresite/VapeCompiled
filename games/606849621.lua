@@ -595,7 +595,9 @@ run(function()
 		CircleAction = require(replicatedStorage.Module.UI).CircleAction,
 		FallingController = require(replicatedStorage.Game.Falling),
 		GunController = require(replicatedStorage.Game.Item.Gun),
+		GunUtils = require(replicatedStorage.Game.GunShop.GunUtils),
 		InventoryItemBinder = require(replicatedStorage.Inventory.InventoryItemBinder),
+		InventoryItemSystem = require(replicatedStorage.Inventory.InventoryItemSystem),
 		ItemSystemController = require(replicatedStorage.Game.ItemSystem.ItemSystem),
 		LightningUtils = require(replicatedStorage.Game.LightningUtils),
 		PlayerUtils = require(replicatedStorage.Game.PlayerUtils),
@@ -631,6 +633,7 @@ run(function()
 		Action3 = 'Pickup',
 		AttemptArrest = 'Arrest',
 		attemptPunch = 'Punch',
+		AttemptPickPocket = 'Pickpocket',
 		AttemptVehicleEject = 'Eject',
 		AttemptVehicleEnter = 'GetIn',
 		BroadcastInputBegan = 'InputBegan',
@@ -714,6 +717,16 @@ run(function()
 		end)
 	end
 
+	for _, connection in getconnections(runService.Heartbeat) do
+		if connection.Function and islclosure(connection.Function) and #debug.getupvalues(connection.Function) > 5 then
+			local upval = debug.getupvalue(connection.Function, 6)
+			if type(upval) == 'function' and debug.info(upval, 'n') == 'WalkSpeedFun' then
+				jb.WalkSpeedFun = upval
+				break
+			end
+		end
+	end
+
 	table.insert(whitelist.tagcallback, function(plr, plrtag, rich)
 		if plr then
 			local entity = entitylib.getEntity(plr)
@@ -737,8 +750,18 @@ run(function()
 	end))
 
 	vape:Clean(entitylib.Events.EntityUpdated:Connect(function(entity)
-		entity.InVehicle = not entity.Character:GetAttribute('HasHandcuffs') and (entity.Character:GetAttribute('InVehicle') or entity.InVehicle)
+		local isInVehicle = entity.Character:GetAttribute('InVehicle')
+		if entity.VehicleState ~= isInVehicle and not isInVehicle then
+			entity.VehicleTimer = os.clock() + 0.3
+		end
+
+		entity.VehicleState = isInVehicle
+		entity.InVehicle = not entity.Character:GetAttribute('HasHandcuffs') and (isInVehicle or entity.InVehicle)
 		entity.Illegal = isIllegal(entity, true)
+
+		if entity.Player and entity.Player.Team == teams.Prisoner then
+			entity.Pickpocket = nil
+		end
 	end))
 
 	vape:Clean(entitylib.Events.LocalAdded:Connect(updateVelocity))
@@ -1030,11 +1053,27 @@ run(function()
 end)
 
 run(function()
+	local Sprint
+	
+	Sprint = vape.Categories.Combat:CreateModule({
+		Name = 'Sprint',
+		Function = function(callback)
+			if callback then
+				repeat
+					debug.setupvalue(jb.WalkSpeedFun, 9, true)
+					task.wait(0.05)
+				until not Sprint.Enabled
+			end
+		end,
+		Tooltip = 'Sets your sprinting to true.'
+	})
+end)
+
+run(function()
 	local AutoArrest
 	local Range
 	local AutoEquip
 	local cooldown = 0
-	local ejectCooldown = 0
 	
 	local function equipTool(tool)
 		local obj = jb.InventoryItemBinder:Get(tool)
@@ -1050,9 +1089,8 @@ run(function()
 				repeat
 					local cuffs = InvTracker.Inventories[lplr].Handcuffs
 	
-					if lplr.Team == teams.Police and cuffs then
+					if entitylib.isAlive and lplr.Team == teams.Police and cuffs then
 						local serverPos = entitylib.character.Humanoid:FindFirstChild('HumanoidUnloadServerPosition')
-						local vehicle
 						local target
 	
 						local entities = entitylib.AllPosition({
@@ -1064,17 +1102,13 @@ run(function()
 	
 						for _, entity in entities do
 							if entity.Player and isIllegal(entity) then
-								if entity.Character:GetAttribute('InVehicle') then
-									if not vehicle and ejectCooldown < os.clock() then
-										vehicle = getVehicle(entity)
-									end
-								elseif not entity.Character:GetAttribute('HasHandcuffs') and not target and cooldown < os.clock() then
+								if not entity.Character:GetAttribute('InVehicle') and not entity.Character:GetAttribute('HasHandcuffs') and not target and cooldown < os.clock() then
 									target = entity.Player.Name
 								end
 							end
 						end
 	
-						if vehicle or target then
+						if target then
 							local lastEquipped = jb.ItemSystemController:GetLocalEquipped()
 							if AutoEquip.Enabled and not (lastEquipped and lastEquipped.__ClassName == 'Handcuffs') then
 								equipTool(cuffs)
@@ -1082,11 +1116,6 @@ run(function()
 	
 							local equipped = jb.ItemSystemController:GetLocalEquipped()
 							if equipped and equipped.__ClassName == 'Handcuffs' then
-								if vehicle then
-									jb:FireServer('Eject', vehicle)
-									ejectCooldown = os.clock() + 0.2
-								end
-	
 								if target then
 									jb:FireServer('Arrest', target)
 									cooldown = os.clock() + 0.5
@@ -1117,6 +1146,136 @@ run(function()
 	AutoEquip = AutoArrest:CreateToggle({
 		Name = 'AutoEquip',
 		Tooltip = 'Automatically equip the handcuffs for performing actions (RISKY)'
+	})
+end)
+
+run(function()
+	local AutoEject
+	local Range
+	local Hand
+	local cooldown = 0
+	
+	AutoEject = vape.Categories.Blatant:CreateModule({
+		Name = 'AutoEject',
+		Function = function(callback)
+			if callback then
+				repeat
+					local cuffs = InvTracker.Inventories[lplr].Handcuffs
+	
+					if entitylib.isAlive and lplr.Team == teams.Police and cuffs then
+						local equipped = jb.ItemSystemController:GetLocalEquipped()
+	
+						if not Hand.Enabled or equipped and equipped.__ClassName == 'Handcuffs' then
+							local serverPos = entitylib.character.Humanoid:FindFirstChild('HumanoidUnloadServerPosition')
+							local vehicle
+	
+							local entities = entitylib.AllPosition({
+								Players = true,
+								Part = 'RootPart',
+								Range = Range.Value,
+								Origin = serverPos and serverPos.Value or nil
+							})
+	
+							for _, entity in entities do
+								if entity.Player and isIllegal(entity) then
+									if entity.Character:GetAttribute('InVehicle') then
+										if not vehicle and cooldown < os.clock() then
+											vehicle = getVehicle(entity)
+										end
+									end
+								end
+							end
+	
+							if vehicle then
+								jb:FireServer('Eject', vehicle)
+								cooldown = os.clock() + 0.5
+							end
+						end
+					end
+	
+					task.wait(0.016)
+				until not AutoEject.Enabled
+			end
+		end,
+		Tooltip = 'Automatically ejects on nearby vehicles'
+	})
+	Range = AutoEject:CreateSlider({
+		Name = 'Range',
+		Min = 1,
+		Max = 40,
+		Default = 40,
+		Suffix = function(val)
+			return val == 1 and 'stud' or 'studs'
+		end
+	})
+	Hand = AutoEject:CreateToggle({
+		Name = 'Hand Check',
+		Tooltip = 'Only eject while holding handcuffs'
+	})
+end)
+
+run(function()
+	local AutoPickpocket
+	local Range
+	local cooldown = 0
+	
+	local function equipTool(tool)
+		local obj = jb.InventoryItemBinder:Get(tool)
+		if obj then
+			obj:AttemptSelect()
+		end
+	end
+	
+	AutoPickpocket = vape.Categories.Blatant:CreateModule({
+		Name = 'AutoPickpocket',
+		Function = function(callback)
+			if callback then
+				repeat
+					if entitylib.isAlive then
+						local serverPos = entitylib.character.Humanoid:FindFirstChild('HumanoidUnloadServerPosition')
+						local target
+	
+						local entities = entitylib.AllPosition({
+							Players = true,
+							Part = 'RootPart',
+							Range = Range.Value,
+							Origin = serverPos and serverPos.Value or nil
+						})
+	
+						for _, entity in entities do
+							if entity.Player and entity.Player.Team ~= teams.Prisoner then
+								if not (target or entity.Pickpocket) and cooldown < os.clock() then
+									if entity.Player.Team == teams.Criminal and not entity.Character:GetAttribute('HasHandcuffs') then
+										continue
+									end
+	
+									target = entity
+									break
+								end
+							end
+						end
+	
+						if target then
+							target.Pickpocket = target.Player.Team == teams.Criminal
+							jb:FireServer('Pickpocket', target.Player.Name)
+							cooldown = os.clock() + 0.2
+						end
+					end
+	
+					task.wait(0.016)
+				until not AutoPickpocket.Enabled
+			end
+		end,
+		Tooltip = 'Automatically steals from nearby entities'
+	})
+	Range = AutoPickpocket:CreateSlider({
+		Name = 'Range',
+		Min = 1,
+		Max = 16,
+		Default = 16,
+		Suffix = function(val)
+			return val == 1 and 'stud' or 'studs'
+		end
 	})
 end)
 
@@ -1232,7 +1391,7 @@ run(function()
 				until not AutoPunch.Enabled
 			end
 		end,
-		Tooltip = 'Always punches people infront of you'
+		Tooltip = 'Always punches objects and entities infront of you'
 	})
 end)
 
@@ -1269,7 +1428,7 @@ run(function()
 				repeat
 					local taser = InvTracker.Inventories[lplr].Taser
 	
-					if taser then
+					if entitylib.isAlive and taser then
 						local equipped = jb.ItemSystemController:GetLocalEquipped()
 						local isTaser = equipped and equipped.__ClassName == 'Taser'
 	
@@ -1282,7 +1441,7 @@ run(function()
 	
 							if (taser:GetAttribute('NextUse') or 0) < os.clock() then
 								for _, entity in entities do
-									if isIllegal(entity) and not (entity.Character:GetAttribute('HasHandcuffs') or entity.Character:GetAttribute('InVehicle')) then
+									if isIllegal(entity) and (entity.VehicleTimer or 0) < os.clock() and not (entity.Character:GetAttribute('HasHandcuffs') or entity.Character:GetAttribute('InVehicle') or entity.Head.CanCollide) then
 										drawTaser(equipped and equipped.Tip or entitylib.character.RootPart, entity.RootPart.Position)
 										taser:SetAttribute('LastUsedAt', os.clock())
 										taser:SetAttribute('NextUse', os.clock() + 10)
@@ -1416,10 +1575,17 @@ run(function()
 						local hum = entitylib.character.Humanoid
 						local root = entitylib.character.RootPart
 						if hum.Sit then
-							lplr.Character:SetAttribute('DoNotAllowVehicleExit', true)
-							root.CFrame += Vector3.new(0, (up + down) * VerticalValue.Value * dt, 0)
-							Platform.Position = root.Position - Vector3.new(0, 3, 0)
-							Platform.Parent = gameCamera
+							local packet = jb.VehicleController.GetLocalVehiclePacket()
+							local wheel = packet and packet.EngineThrusters[1]
+
+							if wheel then
+								local suspension = (packet.Model:GetAttribute('GarageSuspensionHeight') or 0) + packet.Height
+								lplr.Character:SetAttribute('DoNotAllowVehicleExit', table.find(UpKey.Keys, 'Space') and true or false)
+								packet.Seat.CFrame += Vector3.new(0, (up + down) * VerticalValue.Value * dt, 0)
+								Platform.Position = wheel.Engine.Position + Vector3.new(0, -suspension, 0)
+								Platform.Parent = gameCamera
+							end
+
 							return
 						else
 							Platform.Parent = nil
@@ -1515,14 +1681,42 @@ run(function()
 end)
 
 run(function()
+	local ForceEquip
+	local old
+	
+	ForceEquip = vape.Categories.Blatant:CreateModule({
+		Name = 'ForceEquip',
+		Function = function(callback)
+			if callback then
+				for _, condition in jb.InventoryItemSystem._equipConditions do
+					if debug.getconstants(condition)[1] == 'IsCrawling' then
+						debug.setconstant(condition, 1, '_IsCrawling')
+						old = condition
+						break
+					end
+				end
+			else
+				if old then
+					debug.setconstant(old, 1, 'IsCrawling')
+					old = nil
+				end
+			end
+		end,
+		Tooltip = 'Allow you to equip while crouching'
+	})
+end)
+
+run(function()
 	local GunModifications
 	local Recoil
 	local Spread
 	local Automatic
+	local EquipTime
 	local VehicleWallbang
 	local Headshot
 	local Hitscan
 	local oldhit
+	local oldequip
 	local olddata = {}
 	
 	local function ModifyGun(gun)
@@ -1575,11 +1769,17 @@ run(function()
 					end)
 				end
 	
-				if Headshot.Enabled then
+				--[[if Headshot.Enabled then
 					oldhit = hookfunction(jb.GunController.BulletEmitterOnLocalHitPlayer, function(...)
 						local shotData = select(15, ...)
 						shotData.isHeadshot = true
 						return oldhit(...)
+					end)
+				end]]
+	
+				if EquipTime.Enabled then
+					oldequip = hookfunction(jb.GunUtils.getShouldAddEquipTime, function()
+						return false
 					end)
 				end
 	
@@ -1602,6 +1802,11 @@ run(function()
 					oldhit = nil
 				end
 	
+				if oldequip then
+					restorefunction(jb.GunUtils.getShouldAddEquipTime)
+					oldequip = nil
+				end
+	
 				for config, data in olddata do
 					for i, v in data do
 						config[i] = v
@@ -1621,6 +1826,15 @@ run(function()
 		Name = 'No Spread',
 		Function = ApplyMods
 	})
+	EquipTime = GunModifications:CreateToggle({
+		Name = 'No Equip Time',
+		Function = function()
+			if GunModifications.Enabled then
+				GunModifications:Toggle()
+				GunModifications:Toggle()
+			end
+		end
+	})
 	Automatic = GunModifications:CreateToggle({
 		Name = 'Full Automatic',
 		Function = ApplyMods
@@ -1630,7 +1844,7 @@ run(function()
 		Function = ApplyMods,
 		Tooltip = 'Allow you to shoot through vehicles.'
 	})
-	Headshot = GunModifications:CreateToggle({
+	--[[Headshot = GunModifications:CreateToggle({
 		Name = 'Always Headshot',
 		Function = function()
 			if GunModifications.Enabled then
@@ -1639,7 +1853,7 @@ run(function()
 			end
 		end,
 		Tooltip = 'Force headshot damage when hitting any body part'
-	})
+	})]]
 	Hitscan = GunModifications:CreateToggle({
 		Name = 'Hitscan Bullets',
 		Function = function()
@@ -1686,7 +1900,7 @@ run(function()
 				table.clear(modified)
 			end
 		end,
-		Tooltip = 'Allow you to ignore lazers found in the jewelry store'
+		Tooltip = 'Allow you to ignore specific damage sources'
 	})
 end)
 
@@ -1762,8 +1976,36 @@ run(function()
 		Function = function(callback)
 			debug.setconstant(debug.getupvalue(jb.FallingController.Init, 20), 9, callback and 'Archivable' or 'Sit')
 		end,
-		Tooltip = 'Disables ragdoll handling & fall damage'
+		Tooltip = 'Disables ragdoll handling and fall damage'
 	})
+end)
+
+run(function()
+	local NoSlowdown
+	local Toggles = {}
+	
+	NoSlowdown = vape.Categories.Blatant:CreateModule({
+		Name = 'NoSlowdown',
+		Function = function(callback)
+			debug.setconstant(jb.WalkSpeedFun, 5, callback and Toggles.Damage.Enabled and 'MaxHealth' or 'Health')
+			debug.setconstant(jb.WalkSpeedFun, 13, callback and Toggles.SWAT.Enabled and '_ShieldSWAT' or 'ShieldSWAT')
+			debug.setconstant(jb.WalkSpeedFun, 16, callback and Toggles.Crawling.Enabled and 1 or 0.4)
+			debug.setconstant(jb.WalkSpeedFun, 33, callback and Toggles.Spotlight.Enabled and '_IsInTrackingSpotlight' or 'IsInTrackingSpotlight')
+		end,
+		Tooltip = 'Prevents slowing down from various sources.'
+	})
+	
+	for _, toggle in {'Damage', 'Crawling', 'SWAT', 'Spotlight'} do
+		Toggles[toggle] = NoSlowdown:CreateToggle({
+			Name = toggle,
+			Function = function(callback)
+				if NoSlowdown.Enabled then
+					NoSlowdown:Toggle()
+					NoSlowdown:Toggle()
+				end
+			end
+		})
+	end
 end)
 
 run(function()
@@ -1878,7 +2120,7 @@ run(function()
 			if callback then
 				old = hookfunction(jb.CircleAction.Press, function(...)
 					local action = jb.CircleAction.Spec
-					if action and action.Timed and not (action.ReleaseCallback or await) then
+					if action and action.Timed and not (action.ReleaseCallback or action.ShouldHotwire or await) then
 						local old = action.Timed
 	
 						action.Timed = false
