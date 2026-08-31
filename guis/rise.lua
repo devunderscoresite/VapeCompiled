@@ -2060,6 +2060,21 @@ mainapi.Components = setmetatable(components, {
 	end
 })
 
+for ind, func in components do
+	for _, v in mainapi.Modules do
+		rawset(v, 'Create'..ind, function(_, settings)
+			return func(settings, v.Children, v)
+		end)
+	end
+	if mainapi.Legit then
+		for _, v in mainapi.Legit.Modules do
+			rawset(v, 'Create'..ind, function(_, settings)
+				return func(settings, v.Children, v)
+			end)
+		end
+	end
+end
+
 function mainapi:UpdateTextGUI() end
 function mainapi:UpdateGUI() end
 
