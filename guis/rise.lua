@@ -681,67 +681,153 @@ components = {
 		
 		return optionapi
 	end,
-	Dropdown = function(optionsettings, children, api)
-		local optionapi = {
+	Dropdown = function(props, children, api)
+		local component = {
+			Index = 0,
 			Type = 'Dropdown',
-			Value = optionsettings.List[1] or 'None',
-			Index = 0
+			Value = props.List[1] or 'None'
 		}
-		
+
 		local dropdown = Instance.new('TextButton')
-		dropdown.Name = optionsettings.Name..'Dropdown'
-		dropdown.Size = UDim2.new(1, 0, 0, 28)
-		dropdown.BackgroundTransparency = 1
+		dropdown.AutoButtonColor = false
+		dropdown.BackgroundColor3 = color.Dark(children.BackgroundColor3, props.Darker and 0.02 or 0)
+		dropdown.BorderSizePixel = 0
+		dropdown.Size = UDim2.new(1, 0, 0, 40)
 		dropdown.Text = ''
-		dropdown.Visible = optionsettings.Visible == nil or optionsettings.Visible
+		dropdown.Visible = props.Visible == nil or props.Visible
 		dropdown.Parent = children
+		component.Object = dropdown
+		local holder = Instance.new('Frame')
+		holder.BackgroundColor3 = color.Light(uipallet.Main, 0.034)
+		holder.Position = UDim2.fromOffset(10, 4)
+		holder.Size = UDim2.new(1, -20, 1, -11)
+		holder.Parent = dropdown
+		addCorner(holder, UDim.new(0, 6))
+		local button = Instance.new('TextButton')
+		button.AutoButtonColor = false
+		button.BackgroundColor3 = uipallet.Main
+		button.Position = UDim2.fromOffset(1, 1)
+		button.Size = UDim2.new(1, -2, 1, -2)
+		button.Text = ''
+		button.Parent = holder
 		local title = Instance.new('TextLabel')
-		title.Size = UDim2.new(1, -13, 1, 0)
-		title.Position = UDim2.fromOffset(13 + (optionsettings.Darker and 20 or 0), 0)
 		title.BackgroundTransparency = 1
-		title.Text = optionsettings.Name..': '..optionapi.Value
-		title.TextColor3 = color.Dark(uipallet.Text, 0.21)
-		title.TextSize = 18
-		title.TextXAlignment = Enum.TextXAlignment.Left
 		title.FontFace = uipallet.Font
-		title.Parent = dropdown
-		optionsettings.Function = optionsettings.Function or function() end
-		
-		function optionapi:Save(tab)
-			tab[optionsettings.Name] = {Value = self.Value}
-		end
-		
-		function optionapi:Load(tab)
-			if self.Value ~= tab.Value then
-				self:SetValue(tab.Value)
-			end
-		end
-		
-		function optionapi:Change(list)
-			optionsettings.List = list or {}
-			if not table.find(optionsettings.List, self.Value) then
+		title.Size = UDim2.new(1, 0, 0, 29)
+		title.Text = '         '..props.Name..' - '..component.Value
+		title.TextColor3 = color.Dark(uipallet.Text, 0.16)
+		title.TextSize = 13
+		title.TextTruncate = Enum.TextTruncate.AtEnd
+		title.TextXAlignment = Enum.TextXAlignment.Left
+		title.Parent = button
+		addCorner(button, UDim.new(0, 6))
+		local arrow = Instance.new('ImageLabel')
+		arrow.BackgroundTransparency = 1
+		arrow.Image = getvapeasset('newvape/assets/new/expandarrow.png')
+		arrow.ImageColor3 = Color3.fromRGB(140, 140, 140)
+		arrow.Position = UDim2.new(1, -17, 0, 11)
+		arrow.Rotation = 90
+		arrow.Size = UDim2.fromOffset(4, 8)
+		arrow.Parent = button
+		props.Function = props.Function or function() end
+		local dropdownchildren
+
+		function component:Change(list)
+			props.List = list or {}
+			if not table.find(props.List, self.Value) then
 				self:SetValue(self.Value)
 			end
 		end
-		
-		function optionapi:SetValue(val, mouse)
-			self.Value = table.find(optionsettings.List, val) and val or optionsettings.List[1] or 'None'
-			title.Text = optionsettings.Name..': '..self.Value
-			optionsettings.Function(self.Value, mouse)
+
+		function component:Load(data)
+			if self.Value ~= data.Value then
+				self:SetValue(data.Value)
+			end
 		end
-		
-		dropdown.MouseButton1Click:Connect(function()
-			optionapi:SetValue(optionsettings.List[(table.find(optionsettings.List, optionapi.Value) % #optionsettings.List) + 1], true)
+
+		function component:Save(data)
+			data[props.Name] = {
+				Value = self.Value
+			}
+		end
+
+		function component:SetValue(value, isClick)
+			self.Value = table.find(props.List, value) and value or props.List[1] or 'None'
+			title.Text = '         '..props.Name..' - '..self.Value
+
+			if dropdownchildren then
+				arrow.Rotation = 90
+				dropdownchildren:Destroy()
+				dropdownchildren = nil
+				dropdown.Size = UDim2.new(1, 0, 0, 40)
+			end
+
+			props.Function(self.Value, isClick)
+		end
+
+		button.MouseButton1Click:Connect(function()
+			if not dropdownchildren then
+				arrow.Rotation = 270
+				dropdown.Size = UDim2.new(1, 0, 0, 43 + (#props.List - 1) * 26)
+				dropdownchildren = Instance.new('Frame')
+				dropdownchildren.BackgroundTransparency = 1
+				dropdownchildren.Position = UDim2.fromOffset(0, 27)
+				dropdownchildren.Size = UDim2.new(1, 0, 0, (#props.List - 1) * 26)
+				dropdownchildren.Parent = button
+
+				local index = 0
+				for _, v in props.List do
+					if v == component.Value then continue end
+					local entry = Instance.new('TextButton')
+					entry.AutoButtonColor = false
+					entry.BackgroundColor3 = uipallet.Main
+					entry.BorderSizePixel = 0
+					entry.FontFace = uipallet.Font
+					entry.Position = UDim2.fromOffset(0, index * 26)
+					entry.Size = UDim2.new(1, 0, 0, 26)
+					entry.Text = '         '..v
+					entry.TextColor3 = color.Dark(uipallet.Text, 0.16)
+					entry.TextSize = 13
+					entry.TextTruncate = Enum.TextTruncate.AtEnd
+					entry.TextXAlignment = Enum.TextXAlignment.Left
+					entry.Parent = dropdownchildren
+
+					entry.MouseEnter:Connect(function()
+						entry.BackgroundColor3 = color.Light(uipallet.Main, 0.02)
+						entry.TextColor3 = uipallet.Text
+					end)
+
+					entry.MouseLeave:Connect(function()
+						entry.BackgroundColor3 = uipallet.Main
+						entry.TextColor3 = color.Dark(uipallet.Text, 0.16)
+					end)
+
+					entry.MouseButton1Click:Connect(function()
+						component:SetValue(v, true)
+					end)
+
+					index += 1
+				end
+			else
+				component:SetValue(component.Value, true)
+			end
 		end)
-		dropdown.MouseButton2Click:Connect(function()
-			local num = table.find(optionsettings.List, optionapi.Value) - 1
-			optionapi:SetValue(optionsettings.List[num < 1 and #optionsettings.List or num], true)
+
+		dropdown.MouseEnter:Connect(function()
+			tween:Tween(holder, uipallet.Tween, {
+				BackgroundColor3 = color.Light(uipallet.Main, 0.0875)
+			})
 		end)
-		
-		optionapi.Object = dropdown
-		api.Options[optionsettings.Name] = optionapi
-		
-		return optionapi
+
+		dropdown.MouseLeave:Connect(function()
+			tween:Tween(holder, uipallet.Tween, {
+				BackgroundColor3 = color.Light(uipallet.Main, 0.034)
+			})
+		end)
+
+		api.Options[props.Name] = component
+
+		return component
 	end,
 	Font = function(optionsettings, children, api)
 		local fonts = {
@@ -1598,6 +1684,361 @@ components = {
 			divider.Position = UDim2.fromOffset(0, 26)
 			divider.Parent = label
 		end
+	end,
+	Bind = function(props, children, api)
+		local component = {
+			Hold = props.Hold or false,
+			Keys = {},
+			Triggered = createSignal(),
+			Type = 'Bind'
+		}
+
+		local bindbutton = Instance.new('TextButton')
+		bindbutton.AutoButtonColor = false
+		bindbutton.BackgroundColor3 = color.Dark(children.BackgroundColor3, props.Darker and 0.02 or 0)
+		bindbutton.BorderSizePixel = 0
+		bindbutton.Size = UDim2.new(1, 0, 0, 40)
+		bindbutton.Text = ''
+		bindbutton.Visible = props.Visible == nil or props.Visible
+		bindbutton.Parent = children
+		component.Object = bindbutton
+
+		local holder = Instance.new('Frame')
+		holder.BackgroundColor3 = color.Light(uipallet.Main, 0.034)
+		holder.Position = UDim2.fromOffset(10, 4)
+		holder.Size = UDim2.new(1, -20, 1, -11)
+		holder.Parent = bindbutton
+		addCorner(holder, UDim.new(0, 6))
+
+		local button = Instance.new('TextButton')
+		button.AutoButtonColor = false
+		button.BackgroundColor3 = uipallet.Main
+		button.Position = UDim2.fromOffset(1, 1)
+		button.Size = UDim2.new(1, -2, 1, -2)
+		button.Text = ''
+		button.Parent = holder
+		addCorner(button, UDim.new(0, 6))
+
+		local title = Instance.new('TextLabel')
+		title.BackgroundTransparency = 1
+		title.FontFace = uipallet.Font
+		title.Size = UDim2.new(1, -40, 0, 29)
+		title.Text = '         '..props.Name
+		title.TextColor3 = color.Dark(uipallet.Text, 0.16)
+		title.TextSize = 13
+		title.TextTruncate = Enum.TextTruncate.AtEnd
+		title.TextXAlignment = Enum.TextXAlignment.Left
+		title.Parent = button
+
+		local bindvalue = Instance.new('TextLabel')
+		bindvalue.BackgroundTransparency = 1
+		bindvalue.FontFace = uipallet.Font
+		bindvalue.Position = UDim2.new(0, 0, 0, 0)
+		bindvalue.Size = UDim2.new(1, -40, 1, 0)
+		bindvalue.Text = ''
+		bindvalue.TextColor3 = uipallet.MainColor
+		bindvalue.TextSize = 13
+		bindvalue.TextXAlignment = Enum.TextXAlignment.Right
+		bindvalue.TextTruncate = Enum.TextTruncate.AtEnd
+		bindvalue.Parent = button
+
+		local bindicon = Instance.new('ImageLabel')
+		bindicon.BackgroundTransparency = 1
+		bindicon.Image = getvapeasset('newvape/assets/new/bind.png')
+		bindicon.ImageColor3 = Color3.fromRGB(140, 140, 140)
+		bindicon.Position = UDim2.new(1, -17, 0, 11)
+		bindicon.Size = UDim2.fromOffset(4, 8)
+		bindicon.Parent = button
+		bindicon.Visible = false
+
+		props.Function = props.Function or function() end
+
+		function component:SetBind(keys, mouse)
+			if props and props.NoRemove and #keys <= 0 then
+				keys = props.Default
+			end
+
+			self.Binding = nil
+			self.Keys = table.clone(keys)
+
+			if #keys <= 0 then
+				bindvalue.Text = 'Not Bound'
+				bindvalue.TextColor3 = color.Dark(uipallet.Text, 0.43)
+			else
+				bindvalue.Text = table.concat(keys, ' + '):upper()
+				bindvalue.TextColor3 = uipallet.MainColor
+			end
+
+			if not table.find(mainapi.ActiveBinds, component) and #keys > 0 then
+				table.insert(mainapi.ActiveBinds, component)
+			elseif #keys == 0 then
+				local index = table.find(mainapi.ActiveBinds, component)
+				if index then
+					table.remove(mainapi.ActiveBinds, index)
+				end
+			end
+
+			props.Function(#keys > 0 and table.concat(keys, ' + ') or '', mouse)
+		end
+
+		function component:Save(tab)
+			tab[props.Name] = {Keys = self.Keys, Hold = self.Hold}
+		end
+
+		function component:Load(tab)
+			if tab.Keys then
+				self:SetBind(tab.Keys)
+			end
+			if tab.Hold then
+				self.Hold = tab.Hold
+			end
+		end
+
+		button.MouseEnter:Connect(function()
+			tween:Tween(holder, uipallet.Tween, {
+				BackgroundColor3 = color.Light(uipallet.Main, 0.0875)
+			})
+			bindvalue.TextColor3 = uipallet.MainColor
+		end)
+
+		button.MouseLeave:Connect(function()
+			tween:Tween(holder, uipallet.Tween, {
+				BackgroundColor3 = color.Light(uipallet.Main, 0.034)
+			})
+			if #component.Keys == 0 then
+				bindvalue.TextColor3 = color.Dark(uipallet.Text, 0.43)
+			end
+		end)
+
+		button.MouseButton1Click:Connect(function()
+			if mainapi.Binding then
+				if mainapi.Binding == component then
+					component:SetBind({}, true)
+					mainapi.Binding = nil
+				end
+				return
+			end
+
+			if props.Module and inputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+				component.Hold = not component.Hold
+				return
+			end
+
+			bindvalue.Text = 'Press a key...'
+			bindvalue.TextColor3 = Color3.fromRGB(255, 100, 100)
+			bindicon.Visible = true
+			component.Binding = true
+			mainapi.Binding = component
+		end)
+
+		if props.Module then
+			api.Bind = component
+		else
+			if props.Default then
+				component:SetBind(props.Default)
+			else
+				component:SetBind({})
+			end
+
+			api.Options[props.Name] = component
+		end
+
+		return component
+	end,
+	GUIButton = function(props, children, api)
+		local component = {
+			Enabled = false,
+			Index = getTableSize(api.Buttons),
+			Name = props.Name
+		}
+
+		local button = Instance.new('TextButton')
+		button.AutoButtonColor = false
+		button.BackgroundColor3 = uipallet.Main
+		button.BorderSizePixel = 0
+		button.FontFace = uipallet.Font
+		button.Name = props.Name
+		button.Size = UDim2.fromOffset(220, 40)
+		button.Text = (props.Icon and string.rep(' ', 39) or props.Window and string.rep(' ', 17) or string.rep(' ', 10))..props.Name
+		button.TextColor3 = color.Dark(uipallet.Text, 0.16)
+		button.TextSize = 14
+		button.TextXAlignment = Enum.TextXAlignment.Left
+		button.Parent = children
+		component.Object = button
+
+		local icon
+		if props.Icon then
+			icon = Instance.new('ImageLabel')
+			icon.BackgroundTransparency = 1
+			icon.Image = props.Icon
+			icon.ImageColor3 = color.Dark(uipallet.Text, 0.16)
+			icon.Position = UDim2.fromOffset(16, 13)
+			icon.Size = props.Size
+			icon.Parent = button
+			component.Icon = icon
+		end
+
+		if props.Name == 'Profiles' then
+			local lbl = Instance.new('TextLabel')
+			lbl.AnchorPoint = Vector2.new(1, 0)
+			lbl.BackgroundColor3 = color.Light(uipallet.Main, 0.04)
+			lbl.FontFace = uipallet.Font
+			lbl.Position = UDim2.new(1, -36, 0, 8)
+			lbl.Size = UDim2.fromOffset(53, 24)
+			lbl.Text = 'default'
+			lbl.TextColor3 = color.Dark(uipallet.Text, 0.29)
+			lbl.TextSize = 12
+			lbl.Parent = button
+			addCorner(lbl)
+			mainapi.ProfileLabel = lbl
+		end
+
+		local arrow = Instance.new('ImageLabel')
+		arrow.BackgroundTransparency = 1
+		arrow.Image = getvapeasset('newvape/assets/new/expandarrow.png')
+		arrow.ImageColor3 = color.Light(uipallet.Main, 0.37)
+		arrow.Name = 'Arrow'
+		arrow.Position = UDim2.new(1, -20, 0, 16)
+		arrow.Size = UDim2.fromOffset(4, 8)
+		arrow.Parent = button
+
+		function component:Destroy()
+			button:Destroy()
+			button:ClearAllChildren()
+		end
+
+		function component:Toggle()
+			if props.Window then
+				self.Enabled = not self.Enabled
+				tween:Tween(arrow, uipallet.Tween, {
+					Position = UDim2.new(1, self.Enabled and -14 or -20, 0, 16)
+				})
+
+				button.TextColor3 = self.Enabled and Color3.fromHSV(mainapi.GUIColor.Hue, mainapi.GUIColor.Sat, mainapi.GUIColor.Value) or uipallet.Text
+				if icon then
+					icon.ImageColor3 = button.TextColor3
+				end
+
+				button.BackgroundColor3 = color.Light(uipallet.Main, 0.02)
+				props.Window.Visible = self.Enabled
+			else
+				props.Function()
+			end
+		end
+
+		button.MouseEnter:Connect(function()
+			if not component.Enabled then
+				button.TextColor3 = uipallet.Text
+				if icon then
+					icon.ImageColor3 = uipallet.Text
+				end
+
+				button.BackgroundColor3 = color.Light(uipallet.Main, 0.02)
+			end
+		end)
+
+		button.MouseLeave:Connect(function()
+			if not component.Enabled then
+				button.TextColor3 = color.Dark(uipallet.Text, 0.16)
+				if icon then
+					icon.ImageColor3 = color.Dark(uipallet.Text, 0.16)
+				end
+
+				button.BackgroundColor3 = uipallet.Main
+			end
+		end)
+
+		button.MouseButton1Click:Connect(function()
+			component:Toggle()
+		end)
+
+		api.Buttons[props.Name] = component
+
+		return component
+	end,
+	ImageToggle = function(props, children, api)
+		local component = {
+			Enabled = false,
+			Index = getTableSize(api.Options),
+			Type = 'ImageToggle'
+		}
+
+		local toggle = Instance.new('TextButton')
+		toggle.AutoButtonColor = false
+		toggle.BackgroundColor3 = color.Dark(children.BackgroundColor3, props.Darker and 0.02 or 0)
+		toggle.BorderSizePixel = 0
+		toggle.FontFace = uipallet.Font
+		toggle.Size = UDim2.new(1, 0, 0, 40)
+		toggle.Text = string.rep(' ', 33 * scale.Scale)..props.Name
+		toggle.TextColor3 = color.Dark(uipallet.Text, 0.16)
+		toggle.TextSize = 14
+		toggle.TextXAlignment = Enum.TextXAlignment.Left
+		toggle.Visible = props.Visible == nil or props.Visible
+		toggle.Parent = children
+		component.Object = toggle
+		local icon = Instance.new('ImageLabel')
+		icon.BackgroundTransparency = 1
+		icon.Image = props.Icon
+		icon.ImageColor3 = uipallet.Text
+		icon.Name = 'Icon'
+		icon.Position = UDim2.fromOffset(16, 13)
+		icon.Size = props.Size
+		icon.Parent = toggle
+		local knob = Instance.new('Frame')
+		knob.AnchorPoint = Vector2.new(1, 0.5)
+		knob.BackgroundColor3 = uipallet.Main
+		knob.BorderSizePixel = 0
+		knob.Name = 'Knob'
+		knob.Position = UDim2.new(1, -12, 0.5, 0)
+		knob.Size = UDim2.fromOffset(10, 10)
+		knob.Parent = toggle
+		addCorner(knob, UDim.new(1, 0))
+		local knobinside = knob:Clone()
+		knobinside.Size = UDim2.new()
+		knobinside.Position = UDim2.fromScale(0.5, 0.5)
+		knobinside.AnchorPoint = Vector2.new(0.5, 0.5)
+		knobinside.BackgroundColor3 = uipallet.MainColor
+		knobinside.Parent = knob
+		props.Function = props.Function or function() end
+
+		function component:Save(tab)
+			tab[props.Name] = {Enabled = self.Enabled}
+		end
+
+		function component:Load(tab)
+			if self.Enabled ~= tab.Enabled then
+				self:Toggle()
+			end
+		end
+
+		function component:Color(hue, sat, val, rainbowcheck)
+			if self.Enabled then
+				knobinside.BackgroundColor3 = uipallet.MainColor
+			end
+		end
+
+		function component:Toggle()
+			self.Enabled = not self.Enabled
+			knobinside.Visible = true
+			tween:Tween(knobinside, TweenInfo.new(0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {
+				Size = UDim2.fromOffset(self.Enabled and 10 or 0, self.Enabled and 10 or 0)
+			})
+			task.delay(0.1, function()
+				knobinside.Visible = knobinside.Size ~= UDim2.new() or self.Enabled
+			end)
+			props.Function(self.Enabled)
+		end
+
+		toggle.MouseButton1Click:Connect(function()
+			component:Toggle()
+		end)
+
+		if props.Default then
+			component:Toggle()
+		end
+		api.Options[props.Name] = component
+
+		return component
 	end
 }
 
